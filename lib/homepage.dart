@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:simple_calculator/pin_screen.dart';
+import 'package:simple_calculator/vault_screen.dart';
+import 'package:simple_calculator/vault_service.dart';
 
 import 'button_values.dart';
 
@@ -14,6 +17,20 @@ class _HomepageState extends State<Homepage> {
   String number1  ="";
   String operand = "";
   String number2 = "";
+  bool _vaultOpened = false;
+
+  final VaultService _vaultService = VaultService();
+  final List<Map<String, dynamic>> _secretCombinations = [
+    {'num1': 23, 'operand': Btn.add, 'num2': 25},
+    {'num1': 7, 'operand': Btn.multiply, 'num2': 3},
+    {'num1': 1984, 'operand': Btn.subtract, 'num2': 1975},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _vaultService.init();
+  }
 
 
   @override
@@ -135,6 +152,17 @@ class _HomepageState extends State<Homepage> {
 
       default:
     }
+
+    // Check for secret combinations
+    for (var combo in _secretCombinations) {
+      if (num1 == combo['num1'] &&
+          operand == combo['operand'] &&
+          num2 == combo['num2']) {
+        _checkVaultAccess();
+        return;
+      }
+    }
+
     // Format the result to show maximum 3 decimal digits
     String formattedResult;
     if (result % 1 == 0) {
@@ -228,6 +256,38 @@ class _HomepageState extends State<Homepage> {
     }
     setState(() {});
   }
+  void _openVault()
+  {
+    setState(() {
+      _vaultOpened = true;
+    });
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const VaultScreen()),
+    ).then((_) {
+      setState(() {
+        _vaultOpened = false;
+      });
+    });
+    clearAll();
+  }
+  Future<void> _checkVaultAccess() async
+  {
+    final hasPin = (await _vaultService.getPhotos()).isNotEmpty;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => hasPin
+            ? const PinScreen(isInitialSetup: false)
+            : const PinScreen(isInitialSetup: true),
+      ),
+    ).then((_) {
+      clearAll();
+    });
+  }
+
+
   Color getBtncolor(value)
   {
     return
