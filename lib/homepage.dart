@@ -6,7 +6,13 @@ import 'package:simple_calculator/vault_service.dart';
 import 'button_values.dart';
 
 class Homepage extends StatefulWidget {
-  const Homepage({super.key});
+  final VoidCallback onThemeToggle;
+  final bool isDarkMode;
+  const Homepage({
+    super.key,
+    required this.onThemeToggle,
+    required this.isDarkMode,
+  });
 
   @override
   State<Homepage> createState() => _HomepageState();
@@ -39,27 +45,41 @@ class _HomepageState extends State<Homepage> {
 
     return Scaffold(
       body: SafeArea (
-        bottom: false,
+        bottom: true,
         child: Column(
           children: [
-            //output
+            Padding(
+              padding: const EdgeInsets.only(right: 12, top: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Icon(widget.isDarkMode ? Icons.dark_mode : Icons.light_mode),
+                  IconButton(
+                    icon: Icon(Icons.brightness_6),
+                    onPressed: widget.onThemeToggle,
+                    tooltip: "Toggle Theme",
+                  ),
+                ],
+              ),
+            ),
+            // output
             Expanded(
               child: SingleChildScrollView(
                 reverse: true,
                 child: Container(
                   alignment: Alignment.bottomRight,
                   padding: const EdgeInsets.all(18.0),
-                  child: Text("$number1$operand$number2".isEmpty?"0":("$number1$operand$number2"),
+                  child: Text(
+                    "$number1$operand$number2".isEmpty ? "0" : ("$number1$operand$number2"),
                     style: const TextStyle(
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.end,
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.end,
                   ),
                 ),
               ),
             ),
-
             //buttons
             Wrap(
               children: Btn.buttonValues.map(
@@ -88,11 +108,17 @@ class _HomepageState extends State<Homepage> {
         child: InkWell(
           onTap: ()=> onBtnTap(value),
           child: Center(
-              child: Text(value,
-                style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 24
-              ),)
+              child: Text(
+                value,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
+                  color: [Btn.n0, Btn.n1, Btn.n2, Btn.n3, Btn.n4, Btn.n5, Btn.n6, Btn.n7, Btn.n8, Btn.n9, Btn.dot]
+                      .contains(value)
+                      ? Colors.white
+                      : Colors.black,
+                ),
+              ),
           ),
         ),
       ),
@@ -158,7 +184,7 @@ class _HomepageState extends State<Homepage> {
       if (num1 == combo['num1'] &&
           operand == combo['operand'] &&
           num2 == combo['num2']) {
-        _checkVaultAccess();
+          _checkVaultAccess();
         return;
       }
     }
