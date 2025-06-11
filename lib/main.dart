@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
-import 'homepage.dart';
+import 'package:simple_calculator/vault_service.dart';
+import 'pages/homepage.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await VaultService().init(); // Init Hive here
+    runApp(const MyApp());
+  }
+  catch (e) {
+    print('❌ App crashed during startup: $e');
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -12,7 +20,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  ThemeMode _themeMode = ThemeMode.light;
+  ThemeMode _themeMode = ThemeMode.dark;
 
   void toggleTheme() {
     setState(() {

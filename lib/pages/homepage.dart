@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:simple_calculator/pin_screen.dart';
-import 'package:simple_calculator/vault_screen.dart';
+import 'package:simple_calculator/pages/pin_screen.dart';
 import 'package:simple_calculator/vault_service.dart';
-
-import 'button_values.dart';
+import '../button_values.dart';
 
 class Homepage extends StatefulWidget {
   final VoidCallback onThemeToggle;
@@ -23,7 +21,6 @@ class _HomepageState extends State<Homepage> {
   String number1  ="";
   String operand = "";
   String number2 = "";
-  bool _vaultOpened = false;
 
   final VaultService _vaultService = VaultService();
   final List<Map<String, dynamic>> _secretCombinations = [
@@ -148,7 +145,6 @@ class _HomepageState extends State<Homepage> {
 
     appendValue(value);
   }
-
   void calculate()
   {
     if(number1.isEmpty) return;
@@ -281,21 +277,6 @@ class _HomepageState extends State<Homepage> {
       number2+= value;
     }
     setState(() {});
-  }
-  void _openVault()
-  {
-    setState(() {
-      _vaultOpened = true;
-    });
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const VaultScreen()),
-    ).then((_) {
-      setState(() {
-        _vaultOpened = false;
-      });
-    });
-    clearAll();
   }
   Future<void> _checkVaultAccess() async
   {
