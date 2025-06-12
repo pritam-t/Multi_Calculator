@@ -46,16 +46,16 @@ class _HomepageState extends State<Homepage> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.only(right: 12, top: 8),
+              padding: const EdgeInsets.only(left: 12, top: 8),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                  Icon(widget.isDarkMode ? Icons.dark_mode : Icons.light_mode),
                   IconButton(
                     icon: Icon(Icons.brightness_6),
                     onPressed: widget.onThemeToggle,
                     tooltip: "Toggle Theme",
                   ),
+                  Icon(widget.isDarkMode ? Icons.dark_mode : Icons.light_mode),
                 ],
               ),
             ),
@@ -280,7 +280,7 @@ class _HomepageState extends State<Homepage> {
   }
   Future<void> _checkVaultAccess() async
   {
-    final hasPin = (await _vaultService.getPhotos()).isNotEmpty;
+    final hasPin = await _vaultService.hasPin(); // Checks if pin is set
 
     Navigator.push(
       context,
@@ -290,11 +290,9 @@ class _HomepageState extends State<Homepage> {
             : const PinScreen(isInitialSetup: true),
       ),
     ).then((_) {
-      clearAll();
+      clearAll(); // Optional: refresh/reset UI
     });
   }
-
-
   Color getBtncolor(value)
   {
     return
