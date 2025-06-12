@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:simple_calculator/vault_service.dart';
 import 'pages/homepage.dart';
 
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
+  final appDir = await getApplicationDocumentsDirectory();
+  Hive.init(appDir.path);
   try {
     await VaultService().init(); // Init Hive here
     runApp(const MyApp());
