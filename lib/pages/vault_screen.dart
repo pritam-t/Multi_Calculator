@@ -2,10 +2,12 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:video_player/video_player.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
+import '../FullScreenImageViewer.dart';
+import '../FullScreenVideoViewer.dart';
 import '../vault_media.dart';
 import '../vault_service.dart';
+
 
 class VaultScreen extends StatefulWidget {
   const VaultScreen({super.key});
@@ -18,7 +20,6 @@ class _VaultScreenState extends State<VaultScreen> {
   final VaultService _vaultService = VaultService();
   List<VaultMedia> _mediaList = [];
   final List<VaultMedia> _selectedItems = [];
-  VideoPlayerController? _currentVideoController;
 
   bool isSelectionMode = false;
   bool _isLoading = false;
@@ -31,17 +32,11 @@ class _VaultScreenState extends State<VaultScreen> {
 
   Future<void> _loadMedia() async {
     setState(() => _isLoading = true);
-    _disposeVideoControllers();
     final media = await _vaultService.getAllMedia();
     setState(() {
       _mediaList = media;
       _isLoading = false;
     });
-  }
-
-  void _disposeVideoControllers() {
-    _currentVideoController?.dispose();
-    _currentVideoController = null;
   }
 
   Future<void> _addMedia() async {
@@ -66,7 +61,6 @@ class _VaultScreenState extends State<VaultScreen> {
       await _vaultService.addMedia(media);
       await _loadMedia();
     } catch (e) {
-      debugPrint('Error adding media: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to add media: ${e.toString()}')),
       );
@@ -84,54 +78,23 @@ class _VaultScreenState extends State<VaultScreen> {
             ? _selectedItems.remove(media)
             : _selectedItems.add(media);
       });
-    } else if (media.mediaType == MediaType.video) {
-      _disposeVideoControllers();
-      _currentVideoController = VideoPlayerController.file(File(media.path))
-        ..initialize().then((_) {
-          if (!mounted) return;
-          setState(() {});
-          showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text("Playing Video"),
-              content: AspectRatio(
-                aspectRatio: _currentVideoController!.value.aspectRatio,
-                child: VideoPlayer(_currentVideoController!),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    _currentVideoController?.pause();
-                    Navigator.pop(context);
-                  },
-                  child: const Text("Close"),
-                )
-              ],
-            ),
-          );
-          _currentVideoController?.play();
-        }).catchError((e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to play video: ${e.toString()}')),
-          );
-        });
     } else {
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text("Image"),
-          content: Image.file(
-            File(media.path),
-            fit: BoxFit.contain,
+      // Add this navigation logic:
+      if (media.mediaType == MediaType.image) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FullScreenImageViewer(imagePath: media.path),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Close"),
-            )
-          ],
-        ),
-      );
+        );
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FullScreenVideoViewer(videoPath: media.path),
+          ),
+        );
+      }
     }
   }
 
@@ -171,26 +134,30 @@ class _VaultScreenState extends State<VaultScreen> {
     );
 
     if (confirm == true) {
-      await _vaultService.deleteMedia(_selectedItems);
-      await _loadMedia();
-      _cancelSelection();
+      setState(() => _isLoading = true);
+      try {
+        await _vaultService.deleteMedia(_selectedItems);
+        await _loadMedia();
+        _cancelSelection();
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete media: ${e.toString()}')),
+        );
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
     }
-  }
-
-
-  // ... (keep other methods like _onMediaLongPress, _cancelSelection, _deleteSelected the same)
-
-  @override
-  void dispose() {
-    _disposeVideoControllers();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(isSelectionMode ? '${_selectedItems.length} selected' : 'Vault'),
+        title: Text(isSelectionMode
+            ? '${_selectedItems.length} selected'
+            : 'Vault'),
         actions: [
           if (isSelectionMode)
             IconButton(
@@ -228,15 +195,36 @@ class _VaultScreenState extends State<VaultScreen> {
                   future: _getVideoThumbnail(media.path),
                   builder: (context, snapshot) {
                     if (snapshot.hasData) {
-                      return Image.memory(snapshot.data!, fit: BoxFit.cover);
+                      return Image.memory(
+                        snapshot.data!,
+                        fit: BoxFit.cover,
+                      );
                     }
-                    return Container(color: Colors.grey);
+                    return Container(
+                      color: Colors.grey,
+                      child: const Center(
+                        child: Icon(Icons.videocam, color: Colors.white),
+                      ),
+                    );
                   },
                 ),
                 if (_selectedItems.contains(media))
                   Container(
                     color: Colors.black.withOpacity(0.5),
-                    child: const Icon(Icons.check_circle, color: Colors.white),
+                    child: const Icon(
+                      Icons.check_circle,
+                      color: Colors.white,
+                    ),
+                  ),
+                if (media.mediaType == MediaType.video)
+                  const Positioned(
+                    bottom: 4,
+                    right: 4,
+                    child: Icon(
+                      Icons.play_circle_fill,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
               ],
             ),
@@ -252,13 +240,12 @@ class _VaultScreenState extends State<VaultScreen> {
 
   Future<Uint8List?> _getVideoThumbnail(String videoPath) async {
     try {
-      final thumbnail = await VideoThumbnail.thumbnailData(
+      return await VideoThumbnail.thumbnailData(
         video: videoPath,
         imageFormat: ImageFormat.JPEG,
         maxWidth: 200,
         quality: 50,
       );
-      return thumbnail;
     } catch (e) {
       debugPrint('Error generating thumbnail: $e');
       return null;

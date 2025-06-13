@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/adapters.dart';
 import 'vault_media.dart';
@@ -7,6 +8,8 @@ class VaultService {
   static const String _mediaBoxName = 'vault_media_box';
   static const _pinBoxName = 'vault_pin';
   static const _pinKey = 'user_pin';
+  final _secureStorage = FlutterSecureStorage();
+
 
 
   Future<void> addMedia(VaultMedia media) async {
@@ -58,6 +61,14 @@ class VaultService {
   Future<bool> hasPin() async {
     final box = Hive.box(_pinBoxName);
     return box.containsKey(_pinKey);
+  }
+
+  Future<void> toggleLock() async {
+    final isLocked = await _secureStorage.read(key: 'vault_locked');
+    await _secureStorage.write(
+      key: 'vault_locked',
+      value: isLocked == 'true' ? 'false' : 'true',
+    );
   }
 }
 
