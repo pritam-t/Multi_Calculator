@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
+import 'package:hive_flutter/adapters.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:simple_calculator/vault_service.dart';
 import 'pages/homepage.dart';
@@ -7,9 +8,11 @@ import 'pages/homepage.dart';
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   final appDir = await getApplicationDocumentsDirectory();
+  await Hive.initFlutter();
   Hive.init(appDir.path);
   try {
-    await VaultService().init(); // Init Hive here
+    await VaultService().init();
+    await Hive.openBox('vault_pin'); // Init Hive here
     runApp(const MyApp());
   }
   catch (e) {
