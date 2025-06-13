@@ -17,16 +17,16 @@ class Homepage extends StatefulWidget {
 }
 
 class _HomepageState extends State<Homepage> {
-
-  String number1  ="";
+  String number1 = "";
   String operand = "";
   String number2 = "";
+  bool _isSecretMode = false;
 
   final VaultService _vaultService = VaultService();
   final List<Map<String, dynamic>> _secretCombinations = [
-    {'num1': 23, 'operand': Btn.add, 'num2': 25},
-    {'num1': 7, 'operand': Btn.multiply, 'num2': 3},
-    {'num1': 1984, 'operand': Btn.subtract, 'num2': 1975},
+    {'num1': 23, 'operand': Btn.add, 'num2': 25},    // 23+25
+    {'num1': 7, 'operand': Btn.multiply, 'num2': 3},  // 7*3
+    {'num1': 1984, 'operand': Btn.subtract, 'num2': 1975}, // 1984-1975
   ];
 
   @override
@@ -35,31 +35,45 @@ class _HomepageState extends State<Homepage> {
     _vaultService.init();
   }
 
-
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
+    final textColor = widget.isDarkMode ? Colors.white : Colors.black;
 
     return Scaffold(
-      body: SafeArea (
+      body: SafeArea(
         bottom: true,
         child: Column(
           children: [
+            // Theme toggle and secret mode indicator
             Padding(
               padding: const EdgeInsets.only(left: 12, top: 8),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  IconButton(
-                    icon: Icon(Icons.brightness_6),
-                    onPressed: widget.onThemeToggle,
-                    tooltip: "Toggle Theme",
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.brightness_6),
+                        onPressed: widget.onThemeToggle,
+                        tooltip: "Toggle Theme",
+                      ),
+                      Icon(widget.isDarkMode ? Icons.dark_mode : Icons.light_mode),
+                    ],
                   ),
-                  Icon(widget.isDarkMode ? Icons.dark_mode : Icons.light_mode),
+                  if (_isSecretMode)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: Icon(
+                        Icons.lock_open,
+                        color: Colors.orange,
+                        size: 28,
+                      ),
+                    ),
                 ],
               ),
             ),
-            // output
+            // Calculator display
             Expanded(
               child: SingleChildScrollView(
                 reverse: true,
@@ -67,238 +81,233 @@ class _HomepageState extends State<Homepage> {
                   alignment: Alignment.bottomRight,
                   padding: const EdgeInsets.all(18.0),
                   child: Text(
-                    "$number1$operand$number2".isEmpty ? "0" : ("$number1$operand$number2"),
-                    style: const TextStyle(
+                    _getDisplayText(),
+                    style: TextStyle(
                       fontSize: 48,
                       fontWeight: FontWeight.bold,
+                      color: textColor,
                     ),
                     textAlign: TextAlign.end,
                   ),
                 ),
               ),
             ),
-            //buttons
+            // Calculator buttons
             Wrap(
               children: Btn.buttonValues.map(
-                      (value)=> SizedBox(
-                        width: value==Btn.n0?screenSize.width/2:screenSize.width/4,
-                          height: screenSize.width/4,
-                          child: buildButton(value)
-                      ),
+                    (value) => SizedBox(
+                  width: value == Btn.n0 ? screenSize.width / 2 : screenSize.width / 4,
+                  height: screenSize.width / 4,
+                  child: buildButton(value),
+                ),
               ).toList(),
-            )
+            ),
           ],
         ),
       ),
     );
   }
-  Widget buildButton(value){
+
+  String _getDisplayText() {
+    if (number1.isEmpty && operand.isEmpty && number2.isEmpty) return "0";
+    return "$number1$operand$number2";
+  }
+
+  Widget buildButton(String value) {
     return Padding(
       padding: const EdgeInsets.all(5.0),
       child: Material(
-        color:getBtncolor(value),
+        color: getBtnColor(value),
         clipBehavior: Clip.hardEdge,
         shape: OutlineInputBorder(
-          borderSide: const BorderSide(color: Colors.white24),
-          borderRadius: BorderRadius.circular(100)
+          borderSide: BorderSide(
+            color: widget.isDarkMode ? Colors.white24 : Colors.black12,
+          ),
+          borderRadius: BorderRadius.circular(100),
         ),
         child: InkWell(
-          onTap: ()=> onBtnTap(value),
+          onTap: () => onBtnTap(value),
           child: Center(
-              child: Text(
-                value,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
-                  color: [Btn.n0, Btn.n1, Btn.n2, Btn.n3, Btn.n4, Btn.n5, Btn.n6, Btn.n7, Btn.n8, Btn.n9, Btn.dot]
-                      .contains(value)
-                      ? Colors.white
-                      : Colors.black,
-                ),
+            child: Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 24,
+                color: getTextColor(value),
               ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  void onBtnTap(String value)
-  {
-    if(value==Btn.del){
+  void onBtnTap(String value) {
+    if (value == Btn.del) {
       delete();
-      return; }
+      return;
+    }
 
-    if(value == Btn.ac){
+    if (value == Btn.ac) {
       clearAll();
       return;
     }
 
-    if(value==Btn.per){
+    if (value == Btn.per) {
       convertToPercentage();
       return;
     }
 
-    if(value == Btn.calculate){
+    if (value == Btn.calculate) {
       calculate();
       return;
     }
 
     appendValue(value);
   }
-  void calculate()
-  {
-    if(number1.isEmpty) return;
-    if(number2.isEmpty) return;
-    if(operand.isEmpty) return;
+
+  void calculate() {
+    if (number1.isEmpty || operand.isEmpty || number2.isEmpty) return;
 
     final double num1 = double.parse(number1);
     final double num2 = double.parse(number2);
 
-    var result= 0.0;
-    switch(operand){
-      case Btn.add:
-       result = num1+num2;
-       break;
-
-      case Btn.subtract:
-        result = num1-num2;
-        break;
-
-      case Btn.multiply:
-        result = num1*num2;
-        break;
-
-      case Btn.divide:
-        result = num1/num2;
-        break;
-
-      default:
-    }
-
-    // Check for secret combinations
+    // Check for secret combinations first
     for (var combo in _secretCombinations) {
       if (num1 == combo['num1'] &&
           operand == combo['operand'] &&
           num2 == combo['num2']) {
-          _checkVaultAccess();
+        setState(() => _isSecretMode = true);
+        _checkVaultAccess();
         return;
       }
     }
 
-    // Format the result to show maximum 3 decimal digits
-    String formattedResult;
-    if (result % 1 == 0) {
-      // If it's a whole number
-      formattedResult = result.toInt().toString();
-    } else
-    {
-      // If it has decimal places
-      formattedResult = result.toStringAsFixed(3);
-      // Remove trailing zeros after decimal if any
-      formattedResult = formattedResult.replaceAll(RegExp(r"0*$"), "").replaceAll(RegExp(r"\.$"), "");
+    // Normal calculation
+    var result = 0.0;
+    switch (operand) {
+      case Btn.add:
+        result = num1 + num2;
+        break;
+      case Btn.subtract:
+        result = num1 - num2;
+        break;
+      case Btn.multiply:
+        result = num1 * num2;
+        break;
+      case Btn.divide:
+        result = num1 / num2;
+        break;
     }
+
     setState(() {
-      number1 = formattedResult;
-      if(number1.endsWith(".0"))
-        {
-          number1 = number1.substring(0,number1.length-2);
-        }
-      operand="";
-      number2="";
-    });
-  }
-  void convertToPercentage()
-  {
-    if(number1.isNotEmpty && operand.isNotEmpty && number2.isNotEmpty)
-      {
-        calculate();
-      }
-    if(operand.isNotEmpty){
-      return;
-    }
-    final number = double.parse(number1);
-    setState(() {
-      number1 = "${(number/100)}";
+      number1 = _formatResult(result);
       operand = "";
       number2 = "";
     });
   }
-  void clearAll()
-  {
+
+  String _formatResult(double result) {
+    if (result % 1 == 0) {
+      return result.toInt().toString();
+    } else {
+      return result.toStringAsFixed(3)
+          .replaceAll(RegExp(r"0*$"), "")
+          .replaceAll(RegExp(r"\.$"), "");
+    }
+  }
+
+  void convertToPercentage() {
+    if (number1.isNotEmpty && operand.isNotEmpty && number2.isNotEmpty) {
+      calculate();
+    }
+    if (operand.isNotEmpty) return;
+
+    final number = double.parse(number1);
     setState(() {
-      number1="";
-      number2="";
-      operand="";
+      number1 = "${(number / 100)}";
+      operand = "";
+      number2 = "";
     });
   }
-  void delete()
-  {
-    if(number2.isNotEmpty){
-      number2 = number2.substring(0,number2.length-1);
-    }
-    else if(operand.isNotEmpty)
-      {
-        operand ="";
-      }
-    else if(number1.isNotEmpty){
-      number1 = number1.substring(0,number1.length-1);
-    }
 
-    setState(() {});
+  void clearAll() {
+    setState(() {
+      number1 = "";
+      operand = "";
+      number2 = "";
+      _isSecretMode = false;
+    });
   }
-  void appendValue(String value)
-  {
 
-    if(value!= Btn.dot&&int.tryParse(value)==null)
-    {
-      if(operand.isNotEmpty&&number2.isNotEmpty)
-      {
-        calculate();
+  void delete() {
+    setState(() {
+      if (number2.isNotEmpty) {
+        number2 = number2.substring(0, number2.length - 1);
+      } else if (operand.isNotEmpty) {
+        operand = "";
+      } else if (number1.isNotEmpty) {
+        number1 = number1.substring(0, number1.length - 1);
       }
-      operand = value;
-    }
-    else if(number1.isEmpty || operand.isEmpty)
-    {
-      if(value==Btn.dot && number1.contains(Btn.dot))return;
-      if(value==Btn.dot && number1.isEmpty || number1== Btn.n0)
-      {
-        value ='0.';
-      }
-      number1+= value;
-    }
-
-    else if(number2.isEmpty || operand.isNotEmpty)
-    {
-      if(value==Btn.dot && number2.contains(Btn.dot))return;
-      if(value==Btn.dot && number2.isEmpty || number2== Btn.n0)
-      {
-        value ='0.';
-      }
-      number2+= value;
-    }
-    setState(() {});
+      _isSecretMode = false;
+    });
   }
-  Future<void> _checkVaultAccess() async
-  {
-    final hasPin = await _vaultService.hasPin(); // Checks if pin is set
+
+  void appendValue(String value) {
+    setState(() {
+      if (value != Btn.dot && int.tryParse(value) == null) {
+        // Operator pressed
+        if (operand.isNotEmpty && number2.isNotEmpty) {
+          calculate();
+        }
+        operand = value;
+      } else if (number1.isEmpty || operand.isEmpty) {
+        // First number input
+        if (value == Btn.dot && number1.contains(Btn.dot)) return;
+        if ((value == Btn.dot && number1.isEmpty) || number1 == Btn.n0) {
+          value = '0.';
+        }
+        number1 += value;
+      } else if (number2.isEmpty || operand.isNotEmpty) {
+        // Second number input
+        if (value == Btn.dot && number2.contains(Btn.dot)) return;
+        if ((value == Btn.dot && number2.isEmpty) || number2 == Btn.n0) {
+          value = '0.';
+        }
+        number2 += value;
+      }
+      _isSecretMode = false;
+    });
+  }
+
+  Future<void> _checkVaultAccess() async {
+    final hasPin = await _vaultService.hasPin();
 
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => hasPin
-            ? const PinScreen(isInitialSetup: false)
-            : const PinScreen(isInitialSetup: true),
+        builder: (context) => PinScreen(
+          isInitialSetup: !hasPin,
+          isUnlockAttempt: true,
+        ),
       ),
     ).then((_) {
-      clearAll(); // Optional: refresh/reset UI
+      clearAll(); // Reset calculator after returning
     });
   }
-  Color getBtncolor(value)
-  {
-    return
-      [Btn.ac].contains(value)? Colors.blueGrey:
-      [Btn.per, Btn.multiply, Btn.add, Btn.subtract, Btn.divide, Btn.calculate].contains(value)?Colors.orange:
-      [Btn.del].contains(value)?Colors.red:
-      Colors.black87;
+
+  Color getBtnColor(String value) {
+    if ([Btn.ac].contains(value)) return Colors.blueGrey;
+    if ([Btn.del].contains(value)) return Colors.red;
+    if ([Btn.per, Btn.multiply, Btn.add, Btn.subtract, Btn.divide, Btn.calculate]
+        .contains(value)) return Colors.orange;
+    return widget.isDarkMode ? Colors.black54 : Colors.grey[200]!;
+  }
+
+  Color getTextColor(String value) {
+    if ([Btn.del, Btn.ac].contains(value)) return Colors.white;
+    if ([Btn.per, Btn.multiply, Btn.add, Btn.subtract, Btn.divide, Btn.calculate]
+        .contains(value)) return Colors.white;
+    return widget.isDarkMode ? Colors.white : Colors.black;
   }
 }

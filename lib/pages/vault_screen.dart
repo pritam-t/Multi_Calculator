@@ -8,8 +8,6 @@ import '../vault_material/FullScreenVideoViewer.dart';
 import '../vault_material/vault_media.dart';
 import '../vault_material/vault_service.dart';
 
-
-
 class VaultScreen extends StatefulWidget {
   const VaultScreen({super.key});
 
@@ -19,25 +17,47 @@ class VaultScreen extends StatefulWidget {
 
 class _VaultScreenState extends State<VaultScreen> {
   final VaultService _vaultService = VaultService();
+  final ScrollController _scrollController = ScrollController();
+  final Map<String, Uint8List> _thumbnailCache = {};
   List<VaultMedia> _mediaList = [];
-  final List<VaultMedia> _selectedItems = [];
-
+  List<VaultMedia> _selectedItems = [];
+  int _currentPage = 0;
   bool isSelectionMode = false;
   bool _isLoading = false;
+  bool _isLoadingMore = false;
 
   @override
   void initState() {
     super.initState();
     _loadMedia();
+    _scrollController.addListener(_scrollListener);
   }
 
   Future<void> _loadMedia() async {
     setState(() => _isLoading = true);
-    final media = await _vaultService.getAllMedia();
+    final media = await _vaultService.getMediaPaginated(_currentPage, 20);
     setState(() {
       _mediaList = media;
       _isLoading = false;
     });
+  }
+
+  Future<void> _loadMoreMedia() async {
+    if (_isLoadingMore) return;
+    setState(() => _isLoadingMore = true);
+    _currentPage++;
+    final newItems = await _vaultService.getMediaPaginated(_currentPage, 20);
+    setState(() {
+      _mediaList.addAll(newItems);
+      _isLoadingMore = false;
+    });
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels ==
+        _scrollController.position.maxScrollExtent) {
+      _loadMoreMedia();
+    }
   }
 
   Future<void> _addMedia() async {
@@ -54,49 +74,53 @@ class _VaultScreenState extends State<VaultScreen> {
           ? MediaType.video
           : MediaType.image;
 
-      VaultMedia media = VaultMedia(
+      await _vaultService.addMedia(VaultMedia(
         path: file.path,
         mediaType: mediaType,
-      );
-
-      await _vaultService.addMedia(media);
+      ));
       await _loadMedia();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to add media: ${e.toString()}')),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _onMediaTap(VaultMedia media) {
+  void _onMediaTap(VaultMedia media) async {
     if (isSelectionMode) {
-      setState(() {
-        _selectedItems.contains(media)
-            ? _selectedItems.remove(media)
-            : _selectedItems.add(media);
-      });
-    } else {
-      // Add this navigation logic:
-      if (media.mediaType == MediaType.image) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => FullScreenImageViewer(imagePath: media.path),
-          ),
-        );
-      } else {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => FullScreenVideoViewer(videoPath: media.path),
-          ),
-        );
-      }
+      setState(() => _toggleSelection(media));
+      return;
     }
+
+    await precacheImage(FileImage(File(media.path)), context);
+
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => media.mediaType == MediaType.image
+            ? FullScreenImageViewer(imagePath: media.path)
+            : FullScreenVideoViewer(videoPath: media.path),
+        transitionsBuilder: (_, animation, __, child) => FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.95, end: 1.0).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+            child: child,
+          ),
+        ),
+        transitionDuration: const Duration(milliseconds: 250),
+      ),
+    );
+  }
+
+  void _toggleSelection(VaultMedia media) {
+    setState(() {
+      _selectedItems.contains(media)
+          ? _selectedItems.remove(media)
+          : _selectedItems.add(media);
+    });
   }
 
   void _onMediaLongPress(VaultMedia media) {
@@ -120,7 +144,7 @@ class _VaultScreenState extends State<VaultScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Confirm Deletion"),
-        content: Text("Are you sure you want to delete ${_selectedItems.length} item(s)?"),
+        content: Text("Delete ${_selectedItems.length} selected item(s)?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -142,114 +166,142 @@ class _VaultScreenState extends State<VaultScreen> {
         _cancelSelection();
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete media: ${e.toString()}')),
+          SnackBar(content: Text('Failed to delete: ${e.toString()}')),
         );
       } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }
 
+  Future<Uint8List?> _getVideoThumbnail(String videoPath) async {
+    if (_thumbnailCache.containsKey(videoPath)) {
+      return _thumbnailCache[videoPath];
+    }
+
+    try {
+      final thumbnail = await VideoThumbnail.thumbnailData(
+        video: videoPath,
+        imageFormat: ImageFormat.WEBP,
+        maxWidth: 300,
+        quality: 50,
+      );
+      if (thumbnail != null) _thumbnailCache[videoPath] = thumbnail;
+      return thumbnail;
+    } catch (e) {
+      debugPrint('Thumbnail error: $e');
+      return null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _thumbnailCache.clear();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(isSelectionMode
-            ? '${_selectedItems.length} selected'
-            : 'Vault'),
-        actions: [
-          if (isSelectionMode)
-            IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: _deleteSelected,
-            ),
-          if (isSelectionMode)
-            IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: _cancelSelection,
-            ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : GridView.builder(
-        itemCount: _mediaList.length,
-        padding: const EdgeInsets.all(8),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          mainAxisSpacing: 6,
-          crossAxisSpacing: 6,
+    return SafeArea(
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(isSelectionMode
+              ? '${_selectedItems.length} Selected'
+              : 'Media Vault'),
+          actions: [
+            if (isSelectionMode) ...[
+              IconButton(
+                icon: const Icon(Icons.delete),
+                onPressed: _selectedItems.isEmpty ? null : _deleteSelected,
+              ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _cancelSelection,
+              ),
+            ],
+          ],
         ),
-        itemBuilder: (_, index) {
-          final media = _mediaList[index];
-          return GestureDetector(
-            onTap: () => _onMediaTap(media),
-            onLongPress: () => _onMediaLongPress(media),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                media.mediaType == MediaType.image
-                    ? Image.file(File(media.path), fit: BoxFit.cover)
-                    : FutureBuilder<Uint8List?>(
-                  future: _getVideoThumbnail(media.path),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasData) {
-                      return Image.memory(
-                        snapshot.data!,
-                        fit: BoxFit.cover,
-                      );
-                    }
-                    return Container(
-                      color: Colors.grey,
-                      child: const Center(
-                        child: Icon(Icons.videocam, color: Colors.white),
-                      ),
-                    );
-                  },
-                ),
-                if (_selectedItems.contains(media))
-                  Container(
-                    color: Colors.black.withOpacity(0.5),
-                    child: const Icon(
-                      Icons.check_circle,
-                      color: Colors.white,
-                    ),
-                  ),
-                if (media.mediaType == MediaType.video)
-                  const Positioned(
-                    bottom: 4,
-                    right: 4,
-                    child: Icon(
-                      Icons.play_circle_fill,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addMedia,
-        child: const Icon(Icons.add),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : GridView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.all(8),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 6,
+            crossAxisSpacing: 6,
+          ),
+          itemCount: _mediaList.length + (_isLoadingMore ? 1 : 0),
+          itemBuilder: (_, index) {
+            if (index >= _mediaList.length) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final media = _mediaList[index];
+            return _buildMediaItem(media);
+          },
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _addMedia,
+          child: const Icon(Icons.add),
+        ),
       ),
     );
   }
 
-  Future<Uint8List?> _getVideoThumbnail(String videoPath) async {
-    try {
-      return await VideoThumbnail.thumbnailData(
-        video: videoPath,
-        imageFormat: ImageFormat.JPEG,
-        maxWidth: 200,
-        quality: 50,
-      );
-    } catch (e) {
-      debugPrint('Error generating thumbnail: $e');
-      return null;
-    }
+  Widget _buildMediaItem(VaultMedia media) {
+    return GestureDetector(
+      onTap: () => _onMediaTap(media),
+      onLongPress: () => _onMediaLongPress(media),
+      child: Hero(
+        tag: media.path,
+        child: Material(
+          color: Colors.transparent,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              media.mediaType == MediaType.image
+                  ? Image.file(File(media.path), fit: BoxFit.cover)
+                  : FutureBuilder<Uint8List?>(
+                future: _getVideoThumbnail(media.path),
+                builder: (_, snapshot) {
+                  if (snapshot.hasData) {
+                    return Image.memory(
+                      snapshot.data!,
+                      fit: BoxFit.cover,
+                    );
+                  }
+                  return Container(
+                    color: Colors.grey[800],
+                    child: const Center(
+                      child: Icon(Icons.videocam, color: Colors.white),
+                    ),
+                  );
+                },
+              ),
+              if (_selectedItems.contains(media))
+                Container(
+                  color: Colors.black54,
+                  child: const Icon(
+                    Icons.check_circle,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                ),
+              if (media.mediaType == MediaType.video)
+                const Positioned(
+                  bottom: 4,
+                  right: 4,
+                  child: Icon(
+                    Icons.play_arrow,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
