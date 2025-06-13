@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:simple_calculator/pages/pin_screen.dart';
-import 'package:simple_calculator/vault_service.dart';
 import '../button_values.dart';
+import '../vault_material/vault_service.dart';
 
 class Homepage extends StatefulWidget {
   final VoidCallback onThemeToggle;

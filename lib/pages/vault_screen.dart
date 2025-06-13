@@ -3,10 +3,11 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
-import '../FullScreenImageViewer.dart';
-import '../FullScreenVideoViewer.dart';
-import '../vault_media.dart';
-import '../vault_service.dart';
+import '../vault_material/FullScreenImageViewer.dart';
+import '../vault_material/FullScreenVideoViewer.dart';
+import '../vault_material/vault_media.dart';
+import '../vault_material/vault_service.dart';
+
 
 
 class VaultScreen extends StatefulWidget {

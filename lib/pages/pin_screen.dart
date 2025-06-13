@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:simple_calculator/pages/vault_screen.dart';
-import '../vault_service.dart';
+
+import '../vault_material/vault_service.dart';
 
 class PinScreen extends StatefulWidget {
   final bool isInitialSetup;
