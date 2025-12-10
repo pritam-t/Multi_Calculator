@@ -39,7 +39,7 @@ You can unlock the vault by typing certain combinations in the calculator. For e
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/your-username/secret_calculator_vault.git
+git clone https://github.com/pritam-t/Multi_Calculator.git
 cd secret_calculator_vault
 ```
 
